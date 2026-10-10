@@ -498,6 +498,10 @@ def _tc85_variant(scenario: ScenarioDefinition, seed: int) -> ScenarioDefinition
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the report explains how the
+# ambiguous commit was resolved (what evidence showed whether it had already
+# committed) and confirms least-privilege scoping; no secret material anywhere
+# in the output.
 SCENARIO = ScenarioDefinition(
     "TC-85",
     "Exactly-Once Provisioning After Ambiguous Commit",
@@ -508,6 +512,7 @@ SCENARIO = ScenarioDefinition(
     _tc85_eval,
     tools_override=_TC85_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     max_turns_override=10,
     variant_factory=_tc85_variant,
     capabilities=("safe-mutation", "concurrency"),

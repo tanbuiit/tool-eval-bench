@@ -323,6 +323,10 @@ def _tc90_eval(state: ScenarioState) -> ScenarioEvaluation:
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the answer cites the specific
+# policy rule discovered (limit increases blocked while a dispute is open) and
+# the resulting reordered plan, documenting the policy conflict for process
+# review.
 SCENARIO = ScenarioDefinition(
     id="TC-90",
     title="Policy-Driven Operation Reordering",
@@ -336,6 +340,7 @@ SCENARIO = ScenarioDefinition(
     evaluate=_tc90_eval,
     tools_override=_TC90_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     dependencies=(("list_transactions", "file_dispute"),),
     capabilities=("policy", "planning"),
 )

@@ -158,6 +158,9 @@ def _tc93_eval(state: ScenarioState) -> ScenarioEvaluation:
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the answer explains the
+# printed-label vs physical-index mapping used, so the lookup is reproducible
+# for any page of the handbook.
 SCENARIO = ScenarioDefinition(
     id="TC-93",
     title="Printed Page Versus Physical Index",
@@ -171,6 +174,7 @@ SCENARIO = ScenarioDefinition(
     evaluate=_tc93_eval,
     tools_override=_TC93_TOOLS,
     difficulty=4,
+    enterprise_points=3,
     capabilities=("tool-contracts",),
 )
 

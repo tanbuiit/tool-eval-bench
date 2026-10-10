@@ -60,6 +60,10 @@ def _tc88_eval(state: ScenarioState) -> ScenarioEvaluation:
     return result
 
 
+# Enterprise rubric (0–3): no tier 3 — the reply-with-only-the-number contract
+# forbids any explanation, and the scenario is a pure private-reasoning
+# capability test whose ceiling is the exact constrained output. Excluded from
+# enterprise_score (enterprise_points None); the 0–2 score is unaffected.
 SCENARIO = ScenarioDefinition(
     "TC-88",
     "Preserved Reasoning Across Follow-Ups",
@@ -74,6 +78,7 @@ SCENARIO = ScenarioDefinition(
     ],
     tools_override=[],
     difficulty=5,
+    enterprise_points=None,
     max_turns_override=3,
     preserve_reasoning_across_follow_ups=True,
     capabilities=("state-tracking", "constraints"),

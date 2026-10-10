@@ -171,6 +171,9 @@ def _tc95_eval(state: ScenarioState) -> ScenarioEvaluation:
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the answer reports which pages
+# were OCR'd and which were read natively (cost accounting), matching the
+# intent of the billing constraint.
 SCENARIO = ScenarioDefinition(
     id="TC-95",
     title="Native Text First, OCR Only Where Needed",
@@ -185,6 +188,7 @@ SCENARIO = ScenarioDefinition(
     evaluate=_tc95_eval,
     tools_override=_TC95_TOOLS,
     difficulty=4,
+    enterprise_points=3,
     capabilities=("constraints", "tool-selection"),
 )
 

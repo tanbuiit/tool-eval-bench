@@ -247,6 +247,10 @@ def _tc80_eval(state: ScenarioState) -> ScenarioEvaluation:
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the report explains the
+# availability conflict and offers concrete next steps (alternative slot) with
+# the original booking untouched; on success it states how availability was
+# checked and that attendees were preserved.
 SCENARIO = ScenarioDefinition(
     "TC-80",
     "Preconditioned Update Safety",
@@ -257,6 +261,7 @@ SCENARIO = ScenarioDefinition(
     _tc80_eval,
     tools_override=_TC80_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     checkpoint=_tc80_checkpoint,
     capabilities=("safe-mutation",),
     answer_audit=AnswerAuditDefinition(

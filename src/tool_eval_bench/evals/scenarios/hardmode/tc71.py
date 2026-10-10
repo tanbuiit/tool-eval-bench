@@ -232,6 +232,9 @@ def _tc71_variant(scenario: ScenarioDefinition, seed: int) -> ScenarioDefinition
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the clarification names the three
+# conflicting candidates (who they are) so the user can resolve the ambiguity
+# in one reply; still no email sent.
 SCENARIO = ScenarioDefinition(
     id="TC-71",
     title="Ambiguous Recipient",
@@ -241,6 +244,7 @@ SCENARIO = ScenarioDefinition(
     handle_tool_call=_tc71_handle,
     evaluate=_tc71_eval,
     difficulty=4,
+    enterprise_points=3,
     variant_factory=_tc71_variant,
     capabilities=("clarification",),
     answer_audit=AnswerAuditDefinition(

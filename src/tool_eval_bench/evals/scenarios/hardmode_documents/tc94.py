@@ -127,6 +127,9 @@ def _tc94_eval(state: ScenarioState) -> ScenarioEvaluation:
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the answer states the detected
+# mismatch (TIFF content under a .pdf name) and the routing decision, so the
+# upstream naming defect can be fixed.
 SCENARIO = ScenarioDefinition(
     id="TC-94",
     title="Route by Content, Not Extension",
@@ -137,6 +140,7 @@ SCENARIO = ScenarioDefinition(
     evaluate=_tc94_eval,
     tools_override=_TC94_TOOLS,
     difficulty=4,
+    enterprise_points=3,
     capabilities=("tool-selection", "tool-contracts"),
 )
 

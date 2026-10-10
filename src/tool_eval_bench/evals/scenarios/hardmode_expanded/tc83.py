@@ -121,6 +121,10 @@ def _tc83_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail("Mixed noisy metadata into the required JSON values.")
 
 
+# Enterprise rubric (0–3): no tier 3 — the only-JSON output contract forbids
+# commentary, and the exact key/value payload already occupies the rubric
+# ceiling (correct keys and values after the chained extraction). Excluded
+# from enterprise_score (enterprise_points None); the 0–2 score is unaffected.
 SCENARIO = ScenarioDefinition(
     "TC-83",
     "Format-Sensitive Chained Summary",
@@ -131,6 +135,7 @@ SCENARIO = ScenarioDefinition(
     _tc83_eval,
     tools_override=_TC83_TOOLS,
     difficulty=5,
+    enterprise_points=None,
     dependencies=(("search_files", "read_file"),),
     capabilities=("structured-output",),
 )

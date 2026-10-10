@@ -309,6 +309,9 @@ def _tc74_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail(f"Only tracked {score}/8 required details — significant state loss.")
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the confirmation recaps the full
+# correction trail (what changed from the original request and when it was
+# authorized); exactly one event, no unrelated mutations.
 SCENARIO = ScenarioDefinition(
     id="TC-74",
     title="Stateful Multi-Turn Corrections",
@@ -324,6 +327,7 @@ SCENARIO = ScenarioDefinition(
         "One more change — push the time to 2pm. Now create it and send a confirmation email to both Mark and Sarah.",
     ],
     difficulty=5,
+    enterprise_points=3,
     max_turns_override=12,
     dependencies=(
         ("get_contacts", "create_calendar_event"),

@@ -136,6 +136,9 @@ def _tc96_eval(state: ScenarioState) -> ScenarioEvaluation:
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the answer states the
+# index-coverage evidence and what a definitive negative would require
+# (coverage/re-index check) rather than a bare no.
 SCENARIO = ScenarioDefinition(
     id="TC-96",
     title="An Empty Index Is Not an Empty Collection",
@@ -149,6 +152,7 @@ SCENARIO = ScenarioDefinition(
     evaluate=_tc96_eval,
     tools_override=_TC96_TOOLS,
     difficulty=4,
+    enterprise_points=3,
     capabilities=("completeness",),
 )
 

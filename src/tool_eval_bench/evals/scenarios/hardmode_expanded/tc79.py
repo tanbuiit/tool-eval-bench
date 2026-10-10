@@ -165,6 +165,9 @@ def _tc79_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail("Created the event before dependencies resolved or lost required event details.")
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the answer states the observed
+# weather result and the branch taken (dry → booked; otherwise no booking),
+# making the conditional auditable.
 SCENARIO = ScenarioDefinition(
     "TC-79",
     "Dependency-Aware Event Planning",
@@ -175,6 +178,7 @@ SCENARIO = ScenarioDefinition(
     _tc79_eval,
     tools_override=_TC79_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     dependencies=(
         ("get_weather", "create_calendar_event"),
         ("get_contacts", "create_calendar_event"),

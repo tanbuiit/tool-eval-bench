@@ -272,6 +272,9 @@ def _tc73_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail("Did not chain search → filter → contact → email under multiple constraints.")
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the recommendation shows each
+# constraint verified (Sunday hours, vegan, within 2 km) and says why the
+# rejected candidate was excluded.
 SCENARIO = ScenarioDefinition(
     id="TC-73",
     title="Multi-Constraint Composition",
@@ -284,6 +287,7 @@ SCENARIO = ScenarioDefinition(
     handle_tool_call=_tc73_handle,
     evaluate=_tc73_eval,
     difficulty=5,
+    enterprise_points=3,
     dependencies=(("web_search", "send_email"), ("get_contacts", "send_email")),
     capabilities=("constraints",),
 )

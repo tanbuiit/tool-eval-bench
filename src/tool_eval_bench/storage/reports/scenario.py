@@ -106,6 +106,11 @@ def write_scenario_report(
         f"- **Total Points**: {summary.total_points} / {summary.max_points}",
         f"- **Rating**: {summary.rating}",
     ]
+    if summary.enterprise_score is not None:
+        md.append(
+            f"- **Enterprise Score**: **{summary.enterprise_score:.0f}** / 100 "
+            "_(0–3 rubric; the 0–2 final score is unchanged)_"
+        )
     if summary.weighted_score is not None:
         md.append(
             f"- **Weighted Score**: **{summary.weighted_score}** / 100 _(difficulty-weighted)_"
@@ -255,6 +260,25 @@ def write_scenario_report(
         md.append(
             f"| {_markdown_table_cell(cs.label)} | {cs.earned} | {cs.max_points} | {cs.percent}% |"
         )
+
+    if summary.enterprise_category_scores:
+        md.extend(
+            [
+                "",
+                "## Enterprise by Category (0–3 rubric)",
+                "",
+                "Only scenarios that opt in via `enterprise_points` appear here; the "
+                "0–2 category percentages above are unchanged.",
+                "",
+                "| Category | Scenarios | Points | Score |",
+                "|---|---:|---:|---:|",
+            ]
+        )
+        for ecs in summary.enterprise_category_scores:
+            md.append(
+                f"| {_markdown_table_cell(ecs.label)} | {ecs.scenario_count} "
+                f"| {ecs.earned}/{ecs.max_points} | {ecs.percent}% |"
+            )
 
     if summary.capability_scores:
         md.extend(

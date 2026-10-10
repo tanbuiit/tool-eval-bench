@@ -544,6 +544,14 @@ def _print_final_panel(
             f"  [dim](α={summary.alpha})[/]"
         )
 
+    # Separate 0–3 enterprise grade (only when scenarios carry the rubric).
+    # The 0–2 final_score keeps its meaning, so no line prints without a rubric.
+    if summary.enterprise_score is not None:
+        content += (
+            f"\n  [bold]Enterprise:[/]     {summary.enterprise_score:.0f}/100"
+            f"  [dim](0–3 rubric — final_score 0–2 unchanged)[/]"
+        )
+
     # Weakest category (lowest-scoring area) — skip if all at 100%
     if (
         summary.worst_category is not None

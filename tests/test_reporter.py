@@ -9,6 +9,7 @@ from __future__ import annotations
 from tool_eval_bench.domain.scenarios import (
     Category,
     CategoryScore,
+    EnterpriseCategoryScore,
     ModelScoreSummary,
     ScenarioReportMetadata,
     ScenarioResult,
@@ -578,6 +579,89 @@ class TestSummaryReport:
         assert "Individual Trial Reports" in content
         assert "trial1.md" in content
         assert "trial2.md" in content
+
+    def _make_enterprise_summaries(self, n: int = 2) -> list[ModelScoreSummary]:
+        """Trial summaries whose scenarios opt into the 0–3 enterprise rubric."""
+        summaries = []
+        for _ in range(n):
+            summary = self._make_summaries(1)[0]
+            summary.enterprise_score = 67
+            summary.enterprise_category_scores = [
+                EnterpriseCategoryScore(
+                    category=Category.A,
+                    label="A Tool Selection",
+                    earned=3,
+                    max_points=3,
+                    percent=100,
+                    scenario_count=1,
+                ),
+                EnterpriseCategoryScore(
+                    category=Category.B,
+                    label="B Parameter Precision",
+                    earned=1,
+                    max_points=3,
+                    percent=33,
+                    scenario_count=1,
+                ),
+            ]
+            summaries.append(summary)
+        return summaries
+
+    def test_summary_renders_enterprise_section_when_graded(self, tmp_path) -> None:
+        reporter = MarkdownReporter(root=str(tmp_path))
+        summaries = self._make_enterprise_summaries()
+        agg = self._make_agg(summaries)
+
+        path = reporter.write_summary_report("run_ent", "model", summaries, agg)
+        content = path.read_text(encoding="utf-8")
+
+        assert "## Enterprise Grading (0–3 rubric)" in content
+        assert "| **Enterprise Score** | 67 | 67 |" in content
+        assert "### Enterprise by Category" in content
+        assert "| A Tool Selection | 1 | 3/3 | 100% |" in content
+        assert "| B Parameter Precision | 1 | 1/3 | 33% |" in content
+        # Compatibility note: the 0–2 score stays the headline metric.
+        assert "0–2 `final_score` above is unchanged" in content
+
+    def test_summary_enterprise_not_configured_when_ungraded(self, tmp_path) -> None:
+        reporter = MarkdownReporter(root=str(tmp_path))
+        summaries = self._make_summaries()
+        agg = self._make_agg(summaries)
+
+        path = reporter.write_summary_report("run_no_ent", "model", summaries, agg)
+        content = path.read_text(encoding="utf-8")
+
+        assert "Enterprise scoring: not configured" in content
+        assert "Enterprise by Category" not in content
+
+    def test_trial_report_renders_enterprise_when_graded(self, tmp_path) -> None:
+        reporter = MarkdownReporter(root=str(tmp_path))
+        summary = self._make_summaries(1)[0]
+        summary.enterprise_score = 67
+        summary.enterprise_category_scores = [
+            EnterpriseCategoryScore(
+                category=Category.A,
+                label="A Tool Selection",
+                earned=3,
+                max_points=3,
+                percent=100,
+                scenario_count=1,
+            )
+        ]
+
+        path = reporter.write_scenario_report("run_trial_ent", "model", summary)
+        content = path.read_text(encoding="utf-8")
+
+        assert "**Enterprise Score**: **67** / 100" in content
+        assert "## Enterprise by Category (0–3 rubric)" in content
+        assert "| A Tool Selection | 1 | 3/3 | 100% |" in content
+
+    def test_trial_report_has_no_enterprise_section_when_ungraded(self, tmp_path) -> None:
+        reporter = MarkdownReporter(root=str(tmp_path))
+        path = reporter.write_scenario_report("run_trial_plain", "model", _make_summary())
+        content = path.read_text(encoding="utf-8")
+
+        assert "Enterprise" not in content
 
 
 class TestDefaultPaths:

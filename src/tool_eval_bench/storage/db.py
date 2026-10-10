@@ -289,6 +289,14 @@ class RunRepository:
                     "CREATE INDEX IF NOT EXISTS idx_scenario_runs_session_id "
                     "ON scenario_runs(session_id)"
                 )
+                # Nullable enterprise aggregate (0–100) for the 3-scale
+                # enterprise grading; ``NULL`` = the run graded no scenarios
+                # that carry an ``enterprise_points`` rubric.
+                if "enterprise_score" not in columns:
+                    _add_column(
+                        conn,
+                        "ALTER TABLE scenario_runs ADD COLUMN enterprise_score REAL",
+                    )
                 version = 5
             if version != int(conn.execute("PRAGMA user_version").fetchone()[0]):
                 conn.execute(f"PRAGMA user_version = {version}")

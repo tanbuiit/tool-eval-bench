@@ -403,6 +403,10 @@ def _tc84_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail("Lost an original constraint while recovering from the booking race.")
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the report explains the
+# race/conflict encountered and why the rebooking was needed, with every
+# constraint restated as met (Berlin, smallest fitting room, agenda attached,
+# both attendees emailed).
 SCENARIO = ScenarioDefinition(
     "TC-84",
     "Long-Horizon Recovery With Constraint Retention",
@@ -413,6 +417,7 @@ SCENARIO = ScenarioDefinition(
     _tc84_eval,
     tools_override=_TC84_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     dependencies=(
         ("get_contacts", "book_room"),
         ("search_slots", "book_room"),

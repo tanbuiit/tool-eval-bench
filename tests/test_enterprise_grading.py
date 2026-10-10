@@ -13,6 +13,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from tool_eval_bench.domain.scenarios import (
     CATEGORY_LABELS,
     Category,
@@ -355,3 +357,91 @@ def test_upsert_without_enterprise_score_stays_null_and_resets(tmp_path: Path) -
         ).fetchone()[0]
         conn.close()
         assert value is None
+
+
+# ---------------------------------------------------------------------------
+# (g) B03 — hardmode per-scenario enterprise rubric
+# ---------------------------------------------------------------------------
+
+# Format-locked scenarios: the output contract forbids supplementary
+# explanation, so PASS already occupies the rubric ceiling and the scenarios
+# are excluded from the enterprise aggregate (docs/enterprise-rubric-hardmode.md).
+ENTERPRISE_EXCLUDED_HARDMODE = frozenset({"TC-77", "TC-83", "TC-88"})
+
+
+def _hardmode_scenarios() -> list[ScenarioDefinition]:
+    from tool_eval_bench.evals.scenarios import HARDMODE_SCENARIOS
+
+    return list(HARDMODE_SCENARIOS)
+
+
+def test_hardmode_rubric_declaration() -> None:
+    scenarios = _hardmode_scenarios()
+    assert len(scenarios) == 28
+    by_id = {s.id: s for s in scenarios}
+    assert set(by_id) == {f"TC-{n}" for n in range(70, 98)}
+    for scenario in scenarios:
+        if scenario.id in ENTERPRISE_EXCLUDED_HARDMODE:
+            assert scenario.enterprise_points is None
+        else:
+            assert scenario.enterprise_points == 3
+    # No scenario carries a deliberately under-scoped ceiling: every graded
+    # hardmode scenario declares the full top tier.
+    assert all(s.enterprise_points in (3, None) for s in scenarios)
+
+
+@pytest.mark.parametrize("scenario", _hardmode_scenarios(), ids=lambda s: s.id)
+def test_hardmode_enterprise_tier_mapping(scenario: ScenarioDefinition) -> None:
+    if scenario.id in ENTERPRISE_EXCLUDED_HARDMODE:
+        # Excluded scenarios never contribute a tier, for any outcome.
+        assert enterprise_score_earned(scenario, ScenarioStatus.FAIL) is None
+        assert enterprise_score_earned(scenario, ScenarioStatus.PARTIAL) is None
+        assert enterprise_score_earned(scenario, ScenarioStatus.PASS) is None
+        assert (
+            enterprise_score_earned(scenario, _result(scenario.id, ScenarioStatus.PASS, 2)) is None
+        )
+        return
+    assert enterprise_score_earned(scenario, ScenarioStatus.FAIL) == 0
+    assert enterprise_score_earned(scenario, _result(scenario.id, ScenarioStatus.FAIL, 0)) == 0
+    assert enterprise_score_earned(scenario, ScenarioStatus.PARTIAL) == 1
+    assert enterprise_score_earned(scenario, _result(scenario.id, ScenarioStatus.PARTIAL, 1)) == 1
+    # A bare PASS carries no points evidence → tier 2, never the top tier.
+    assert enterprise_score_earned(scenario, ScenarioStatus.PASS) == 2
+    # Full-marks PASS on a top-tier-3 rubric → enterprise-excellent.
+    assert enterprise_score_earned(scenario, _result(scenario.id, ScenarioStatus.PASS, 2)) == 3
+    # A sub-full-marks PASS result cannot earn tier 3.
+    assert enterprise_score_earned(scenario, _result(scenario.id, ScenarioStatus.PASS, 1)) == 2
+
+
+def test_hardmode_enterprise_aggregate_all_excellent() -> None:
+    scenarios = _hardmode_scenarios()
+    results = [
+        _result(s.id, ScenarioStatus.PASS, 2 if s.enterprise_points == 3 else 2) for s in scenarios
+    ]
+    summary = score_results(results, scenarios)
+    assert summary.enterprise_score == 100
+    # The 0–2 axis is untouched by the enterprise rubric.
+    assert summary.final_score == 100.0
+
+
+def test_hardmode_enterprise_aggregate_one_partial() -> None:
+    scenarios = _hardmode_scenarios()
+    results = [_result(s.id, ScenarioStatus.PASS, 2) for s in scenarios]
+    victim = next(s.id for s in scenarios if s.enterprise_points == 3)
+    results[results.index(next(r for r in results if r.scenario_id == victim))] = _result(
+        victim, ScenarioStatus.PARTIAL, 1
+    )
+    summary = score_results(results, scenarios)
+    # 24 × 3 + 1 of 75 → 97.33 → 97.
+    assert summary.enterprise_score == 97
+    # 0–2 axis: (27×2 + 1)/(28×2) → 98.21 → 98.
+    assert summary.final_score == 98
+
+
+def test_hardmode_enterprise_category_scores_present() -> None:
+    scenarios = _hardmode_scenarios()
+    results = [_result(s.id, ScenarioStatus.PASS, 2) for s in scenarios]
+    payload = score_results(results, scenarios).to_dict()
+    categories = {entry["category"] for entry in payload["enterprise_categories"]}
+    assert categories == {"P"}
+    assert payload["enterprise_score"] == 100

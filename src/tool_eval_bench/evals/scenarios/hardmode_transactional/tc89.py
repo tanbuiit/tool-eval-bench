@@ -544,6 +544,9 @@ def _tc89_eval(state: ScenarioState) -> ScenarioEvaluation:
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the report walks the compensation
+# chain (reserved → terminal failure → released, net exposure zero) with the
+# failure reason, and never claims payment succeeded.
 SCENARIO = ScenarioDefinition(
     id="TC-89",
     title="Compensation After Partial Success",
@@ -557,6 +560,7 @@ SCENARIO = ScenarioDefinition(
     evaluate=_tc89_eval,
     tools_override=_TC89_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     dependencies=(
         ("reserve_funds", "issue_payment"),
         ("issue_payment", "release_reservation"),

@@ -58,6 +58,10 @@ def _tc77_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail("Called an unnecessary tool or did not answer Tokyo.")
 
 
+# Enterprise rubric (0–3): no tier 3 — the city-only output contract forbids
+# supplementary explanation, so PASS already occupies the rubric ceiling
+# (correct fact, zero tool calls, exact format). Excluded from
+# enterprise_score (enterprise_points None); the 0–2 score is unaffected.
 SCENARIO = ScenarioDefinition(
     "TC-77",
     "Irrelevant Tool Trap",
@@ -68,6 +72,7 @@ SCENARIO = ScenarioDefinition(
     _tc77_eval,
     tools_override=_TC77_TOOLS,
     difficulty=4,
+    enterprise_points=None,
     capabilities=("restraint",),
 )
 

@@ -398,6 +398,9 @@ def _tc75_variant(scenario: ScenarioDefinition, seed: int) -> ScenarioDefinition
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the clarification enumerated both
+# missing fields up front and stated that no booking would happen before they
+# were provided (variant: the booking report says why the chosen room fits).
 SCENARIO = ScenarioDefinition(
     "TC-75",
     "Missing Required Parameter",
@@ -408,6 +411,7 @@ SCENARIO = ScenarioDefinition(
     _tc75_eval,
     tools_override=_TC75_TOOLS,
     difficulty=4,
+    enterprise_points=3,
     variant_factory=_tc75_variant,
     capabilities=("clarification",),
     answer_audit=AnswerAuditDefinition(

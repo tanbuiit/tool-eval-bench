@@ -125,6 +125,8 @@ def _tc78_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail("Omitted a required ticker or invented the portfolio value.")
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the answer itemizes each position
+# (shares × price per ticker) so the $935 total is independently verifiable.
 SCENARIO = ScenarioDefinition(
     "TC-78",
     "Independent Portfolio Valuation",
@@ -135,6 +137,7 @@ SCENARIO = ScenarioDefinition(
     _tc78_eval,
     tools_override=_TC78_TOOLS,
     difficulty=4,
+    enterprise_points=3,
     capabilities=("planning", "completeness"),
 )
 

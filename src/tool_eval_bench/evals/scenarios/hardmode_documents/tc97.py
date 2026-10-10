@@ -240,6 +240,9 @@ def _tc97_eval(state: ScenarioState) -> ScenarioEvaluation:
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the report states the
+# verification method across all layers (text, text layer, annotations) and
+# confirms the original untouched — a repeatable redaction checklist.
 SCENARIO = ScenarioDefinition(
     id="TC-97",
     title="Redact Every Layer of a Copy",
@@ -254,6 +257,7 @@ SCENARIO = ScenarioDefinition(
     evaluate=_tc97_eval,
     tools_override=_TC97_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     capabilities=("safe-mutation", "completeness", "tool-contracts"),
     max_turns_override=12,
 )

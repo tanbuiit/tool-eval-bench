@@ -222,6 +222,10 @@ def _tc72_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail("Did not complete the error recovery chain.")
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the report states that the
+# primary summary (file_404) was unreadable and the figures come from the
+# alternative (file_405), and flags the corrupt file so the failure class
+# gets caught next time.
 SCENARIO = ScenarioDefinition(
     id="TC-72",
     title="Cascading Error Recovery",
@@ -231,6 +235,7 @@ SCENARIO = ScenarioDefinition(
     handle_tool_call=_tc72_handle,
     evaluate=_tc72_eval,
     difficulty=4,
+    enterprise_points=3,
     dependencies=(
         ("search_files", "read_file"),
         ("read_file", "send_email"),

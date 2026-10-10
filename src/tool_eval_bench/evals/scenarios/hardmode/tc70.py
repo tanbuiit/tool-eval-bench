@@ -175,6 +175,9 @@ def _tc70_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail("Did not obtain Tokyo weather from a usable weather tool result.")
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the final answer notes that
+# get_weather covers Europe only (why the global tool was required), making
+# the tool choice auditable for the on-call reader.
 SCENARIO = ScenarioDefinition(
     id="TC-70",
     title="Adversarial Near-Duplicate Tools",
@@ -185,6 +188,7 @@ SCENARIO = ScenarioDefinition(
     evaluate=_tc70_eval,
     tools_override=_TC70_TOOLS,
     difficulty=4,
+    enterprise_points=3,
     capabilities=("tool-selection",),
 )
 

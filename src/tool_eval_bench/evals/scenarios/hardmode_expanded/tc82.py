@@ -168,6 +168,9 @@ def _tc82_eval(state: ScenarioState) -> ScenarioEvaluation:
     return _fail("Trusted stale manager memory or sent the checklist to the wrong recipient.")
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the answer notes the remembered
+# manager was stale and names the authoritative source (current directory
+# lookup) used for the decision.
 SCENARIO = ScenarioDefinition(
     "TC-82",
     "Stale Memory Conflict Resolution",
@@ -178,6 +181,7 @@ SCENARIO = ScenarioDefinition(
     _tc82_eval,
     tools_override=_TC82_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     dependencies=(("lookup_directory", "send_email"), ("search_files", "send_email")),
     variant_literals=("launch_checklist",),
     capabilities=("grounding",),

@@ -458,6 +458,9 @@ def _tc86_variant(scenario: ScenarioDefinition, seed: int) -> ScenarioDefinition
     )
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the report states how many
+# version conflicts occurred and that concurrent fields (assignee, tags) were
+# preserved on each rebase, so the concurrency handling is auditable.
 SCENARIO = ScenarioDefinition(
     "TC-86",
     "Optimistic Concurrency Without Lost Updates",
@@ -468,6 +471,7 @@ SCENARIO = ScenarioDefinition(
     _tc86_eval,
     tools_override=_TC86_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     max_turns_override=12,
     variant_factory=_tc86_variant,
     capabilities=("safe-mutation", "concurrency"),

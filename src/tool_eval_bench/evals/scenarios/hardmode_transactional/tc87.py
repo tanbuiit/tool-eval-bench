@@ -373,6 +373,9 @@ def _tc87_variant(scenario: ScenarioDefinition, seed: int) -> ScenarioDefinition
     return result
 
 
+# Enterprise rubric (0–3): tier 3 = PASS plus the digest states its
+# completeness basis (cursor exhausted / final page fetched) so the
+# deduplicated count is trustworthy; exactly one digest.
 SCENARIO = ScenarioDefinition(
     "TC-87",
     "Complete Pagination With Cursor Integrity",
@@ -383,6 +386,7 @@ SCENARIO = ScenarioDefinition(
     _tc87_eval,
     tools_override=_TC87_TOOLS,
     difficulty=5,
+    enterprise_points=3,
     max_turns_override=12,
     dependencies=(("list_incidents", "send_email"), ("get_oncall_route", "send_email")),
     variant_literals=(

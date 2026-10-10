@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List
 
-_SCHEMA_VERSION = 4
+_SCHEMA_VERSION = 5
 
 # Wait rather than fail when another process holds the write lock (concurrent
 # runs against different endpoints share one database file).
@@ -211,6 +211,16 @@ class RunRepository:
                     """
                 )
                 version = 4
+            if version < 5:
+                # Nullable enterprise aggregate (0–100) for the 3-scale
+                # enterprise grading; ``NULL`` = the run graded no scenarios
+                # that carry an ``enterprise_points`` rubric.
+                if "enterprise_score" not in columns:
+                    _add_column(
+                        conn,
+                        "ALTER TABLE scenario_runs ADD COLUMN enterprise_score REAL",
+                    )
+                version = 5
             if version != int(conn.execute("PRAGMA user_version").fetchone()[0]):
                 conn.execute(f"PRAGMA user_version = {version}")
 

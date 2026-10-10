@@ -328,6 +328,12 @@ class ScenarioDefinition:
     # one; reports break Hard Mode down by them.
     capabilities: tuple[str, ...] = ()
     answer_audit: AnswerAuditDefinition | None = None
+    # Optional enterprise tier for the 3-scale enterprise grading (0–3).
+    # ``None`` (the default) means the scenario has no enterprise rubric and is
+    # excluded from the separate ``enterprise_score`` aggregate; the 0–2
+    # ``final_score`` is never affected.  Semantics: 2 = pass, 3 = pass +
+    # enterprise-excellent per the scenario's rubric (see docs/methodology.md).
+    enterprise_points: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -570,6 +576,11 @@ class ModelScoreSummary:
     token_efficiency: float | None = None
     # Difficulty-weighted score (None unless --weight-by-difficulty is used)
     weighted_score: int | None = None
+    # Separate enterprise aggregate (0–100) over the scenarios that opt in via
+    # ``ScenarioDefinition.enterprise_points`` (0–3).  ``None`` when no
+    # scenario in the run carries an enterprise rubric.  The 0–2
+    # ``final_score`` is computed independently and never changes.
+    enterprise_score: float | None = None
     # Scenario IDs dropped from scoring because the endpoint failed them
     # (timeout / connection error / 5xx). See INFRASTRUCTURE_FAILURE_KINDS.
     excluded_scenarios: list[str] = field(default_factory=list)
@@ -629,6 +640,8 @@ class ModelScoreSummary:
                 d["token_efficiency"] = round(self.token_efficiency, 2)
         if self.weighted_score is not None:
             d["weighted_score"] = self.weighted_score
+        if self.enterprise_score is not None:
+            d["enterprise_score"] = self.enterprise_score
         if self.excluded_scenarios:
             d["excluded_scenarios"] = self.excluded_scenarios
             d["completion_rate"] = round(self.completion_rate, 1)

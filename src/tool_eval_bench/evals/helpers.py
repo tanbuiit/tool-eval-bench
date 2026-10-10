@@ -17,7 +17,9 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from tool_eval_bench.domain.scenarios import (
+    ScenarioDefinition,
     ScenarioEvaluation,
+    ScenarioResult,
     ScenarioState,
     ScenarioStatus,
     ToolCallRecord,
@@ -972,6 +974,60 @@ def partial_eval(summary: str, note: str | None = None) -> ScenarioEvaluation:
 def fail_eval(summary: str, note: str | None = None) -> ScenarioEvaluation:
     """Create a FAIL evaluation (0 points)."""
     return ScenarioEvaluation(ScenarioStatus.FAIL, 0, summary, note)
+
+
+# ---------------------------------------------------------------------------
+# Enterprise tier (3-scale) scoring
+# ---------------------------------------------------------------------------
+
+
+def enterprise_score_earned(
+    scenario: ScenarioDefinition,
+    outcome: ScenarioResult | ScenarioStatus | str,
+) -> int | None:
+    """Map one scenario outcome to the 0–3 enterprise tier, or ``None``.
+
+    The 3-scale enterprise grading keeps the 0–2 ``final_score`` untouched and
+    adds a separate tier per scenario that opts in via
+    ``ScenarioDefinition.enterprise_points`` (0–3):
+
+    * ``enterprise_points is None`` (the default) — no enterprise rubric, so
+      the scenario is excluded (the caller leaves it out of the aggregate).
+    * FAIL → 0 · PARTIAL → 1 · PASS → 2.
+    * PASS with full marks (2/2) on a scenario whose rubric tops out at 3
+      (``enterprise_points == 3``) → 3, the "enterprise-excellent" tier.
+      Scenario packs refine what "excellent" means per scenario in their
+      rubrics; the skeleton default treats a clean full-marks pass as
+      excellent.
+
+    Args:
+        scenario: The graded ``ScenarioDefinition`` (or object with an
+            ``enterprise_points`` attribute).
+        outcome: The graded outcome — a ``ScenarioResult``, a
+            ``ScenarioStatus``, or its string value ("pass"/"partial"/"fail").
+    """
+    enterprise_points = getattr(scenario, "enterprise_points", None)
+    if enterprise_points is None:
+        return None
+    if isinstance(outcome, ScenarioResult):
+        status = outcome.status
+        full_marks = outcome.points == 2
+    else:
+        # A bare status carries no points evidence, so it can never prove the
+        # "enterprise-excellent" tier — a plain PASS earns tier 2.
+        status = (
+            outcome if isinstance(outcome, ScenarioStatus) else ScenarioStatus(str(outcome).lower())
+        )
+        full_marks = False
+    if status is ScenarioStatus.FAIL:
+        return 0
+    if status is ScenarioStatus.PARTIAL:
+        return 1
+    # PASS: 2 points; 3 when the scenario carries a top enterprise tier and
+    # the run was a clean full-marks pass.
+    if enterprise_points >= 3 and full_marks:
+        return 3
+    return 2
 
 
 # ---------------------------------------------------------------------------

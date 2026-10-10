@@ -61,6 +61,7 @@ from tool_eval_bench.domain.tools import (
     SYSTEM_PROMPT,
     UNIVERSAL_TOOLS,
 )
+from tool_eval_bench.evals.helpers import enterprise_score_earned
 
 logger = logging.getLogger(__name__)
 
@@ -1369,6 +1370,22 @@ def score_results(
 
     final_score = round((total_points / max_points) * 100) if max_points > 0 else 0
 
+    # Separate enterprise aggregate (0–100) over the scenarios that opt in via
+    # ``enterprise_points``.  Scenarios dropped for infrastructure failures are
+    # excluded from both the numerator and the denominator, matching how the
+    # 0–2 ``final_score`` above is computed; the final_score formula itself is
+    # untouched.
+    ent_pairs = [
+        (r, scenario_map[r.scenario_id])
+        for r in scored_results
+        if r.scenario_id in scenario_map
+        and scenario_map[r.scenario_id].enterprise_points is not None
+    ]
+    enterprise_score: float | None = None
+    if ent_pairs:
+        earned_ent = sum(enterprise_score_earned(sc, r) or 0 for r, sc in ent_pairs)
+        enterprise_score = round((earned_ent / (len(ent_pairs) * 3)) * 100)
+
     completion_rate = (
         round((len(gradable_scenarios) / len(all_scenarios)) * 100, 1) if all_scenarios else 100.0
     )
@@ -1480,4 +1497,5 @@ def score_results(
         token_efficiency=token_eff,
         weighted_score=weighted,
         toolset_deltas=toolset_deltas,
+        enterprise_score=enterprise_score,
     )

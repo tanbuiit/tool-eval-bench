@@ -47,6 +47,7 @@ def _make_summary(
     total_tokens: int = 50000,
     token_efficiency: float | None = 1.8,
     num_results: int = 6,
+    enterprise_score: float | None = None,
 ) -> ModelScoreSummary:
     """Build a ModelScoreSummary with predictable test data."""
     results = []
@@ -90,6 +91,7 @@ def _make_summary(
         worst_category_percent=worst_category_percent,
         total_tokens=total_tokens,
         token_efficiency=token_efficiency,
+        enterprise_score=enterprise_score,
     )
 
 
@@ -201,6 +203,24 @@ class TestPrintFinalPanel:
 
         output = console.file.getvalue()
         assert "α=0.8" in output
+
+    def test_shows_enterprise_line_when_graded(self) -> None:
+        summary = _make_summary(enterprise_score=67)
+        console = Console(file=StringIO(), width=200, no_color=True)
+        _print_final_panel(console, "test-model", summary, elapsed=120.5)
+
+        output = console.file.getvalue()
+        assert "Enterprise:" in output
+        assert "67/100" in output
+        assert "0–2 unchanged" in output
+
+    def test_hides_enterprise_line_without_rubric(self) -> None:
+        summary = _make_summary()
+        console = Console(file=StringIO(), width=200, no_color=True)
+        _print_final_panel(console, "test-model", summary, elapsed=120.5)
+
+        output = console.file.getvalue()
+        assert "Enterprise:" not in output
 
     def test_hides_weakest_when_all_100(self) -> None:
         summary = _make_summary(worst_category_percent=100)

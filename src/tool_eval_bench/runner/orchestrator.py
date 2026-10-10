@@ -40,6 +40,7 @@ from tool_eval_bench.domain.scenarios import (
     CapabilityScore,
     Category,
     CategoryScore,
+    EnterpriseCategoryScore,
     FailureKind,
     ModelScoreSummary,
     OnScenarioEvaluated,
@@ -1382,9 +1383,32 @@ def score_results(
         and scenario_map[r.scenario_id].enterprise_points is not None
     ]
     enterprise_score: float | None = None
+    enterprise_category_scores: list[EnterpriseCategoryScore] = []
     if ent_pairs:
-        earned_ent = sum(enterprise_score_earned(sc, r) or 0 for r, sc in ent_pairs)
+        earned_ent = sum(
+            enterprise_score_earned(scenario, result) or 0 for result, scenario in ent_pairs
+        )
         enterprise_score = round((earned_ent / (len(ent_pairs) * 3)) * 100)
+        # Per-category view of the same tiers, for the report breakdown table.
+        ent_earned_by_cat: dict[Category, int] = {}
+        ent_count_by_cat: dict[Category, int] = {}
+        for result, scenario in ent_pairs:
+            ent_earned_by_cat[scenario.category] = ent_earned_by_cat.get(scenario.category, 0) + (
+                enterprise_score_earned(scenario, result) or 0
+            )
+            ent_count_by_cat[scenario.category] = ent_count_by_cat.get(scenario.category, 0) + 1
+        enterprise_category_scores = [
+            EnterpriseCategoryScore(
+                category=cat,
+                label=CATEGORY_LABELS[cat],
+                earned=ent_earned_by_cat[cat],
+                max_points=ent_count_by_cat[cat] * 3,
+                percent=round((ent_earned_by_cat[cat] / (ent_count_by_cat[cat] * 3)) * 100),
+                scenario_count=ent_count_by_cat[cat],
+            )
+            for cat in Category
+            if cat in ent_earned_by_cat
+        ]
 
     completion_rate = (
         round((len(gradable_scenarios) / len(all_scenarios)) * 100, 1) if all_scenarios else 100.0
@@ -1498,4 +1522,5 @@ def score_results(
         weighted_score=weighted,
         toolset_deltas=toolset_deltas,
         enterprise_score=enterprise_score,
+        enterprise_category_scores=enterprise_category_scores,
     )

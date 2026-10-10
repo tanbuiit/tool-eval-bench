@@ -187,6 +187,69 @@ asynchronous poll.
 
 ---
 
+## Enterprise Grading (0–3 rubric)
+
+Alongside the 0–2 score, a scenario may declare an **optional enterprise
+rubric**: `enterprise_points: 3` on the `ScenarioDefinition`. Scenarios without
+the field are simply absent from the enterprise aggregate — the 0–2
+`final_score`, its categories, and every historical bar are unchanged, so
+enterprise scores are a second, independent axis rather than a replacement.
+
+### Tier definitions (per scenario)
+
+| Tier | Points | Meaning |
+|---|---|---|
+| Fail | 0 | The task did not produce a correct, usable outcome. |
+| Partial | 1 | Correct intent, incomplete execution — some steps or arguments wrong, follow-ups missed, or output unusable as delivered. |
+| Pass | 2 | The standard 0–2 PASS: the right outcome, produced the right way. |
+| Enterprise-excellent | 3 | PASS **and** the response exceeds the standard: it explains what happened and why in terms an on-call engineer can act on, states the process or prevention that would catch or pre-empt the failure class next time, and introduces no harmful or unsafe behaviour along the way. |
+
+The tier-3 bar is deliberately higher than "correct": the reference example is
+the T-08 decision-audit scenario — a pass says *what* was decided; an
+enterprise-excellent pass also says *why*, *what would catch this class of
+mistake next time*, and does it without unsafe tool use. A scenario that
+declares a lower top tier (`enterprise_points` 0–2) can never award tier 3: a
+PASS still earns 2, but the rubric's own ceiling caps its contribution.
+
+### Aggregate
+
+```
+enterprise_score = round((Σ enterprise_points_earned / (N_ent × 3)) × 100)
+```
+
+* `N_ent` = scenarios in the run whose `enterprise_points` is set and that
+  produced a gradable result (infrastructure failures are excluded from both
+  the numerator and the denominator, exactly like `final_score`).
+* The denominator is always `N_ent × 3`, so an under-scoped rubric (top tier
+  below 3) depresses the aggregate by design — declare 3 unless the scenario
+  genuinely cannot demonstrate excellence.
+* `N_ent = 0` → `enterprise_score` is `null`: the JSON payload omits the key,
+  the sqlite column stays `NULL`, and the reports print
+  "Enterprise scoring: not configured".
+
+Per-category enterprise breakdowns use the same tiers per category, and appear
+in the reports only when at least one scenario in that category opts in.
+
+### Where it is rendered
+
+* Per-trial and cross-trial Markdown reports: an "Enterprise Score" headline
+  row (per-trial) or "Enterprise Grading (0–3 rubric)" section (cross-trial),
+  each with the per-category breakdown table.
+* CLI final panel: an `Enterprise:` line under the deployability block.
+* JSON payload: `enterprise_score` plus an `enterprise_categories` list
+  (omitted when null).
+* sqlite: nullable `enterprise_score` column on `scenario_runs` (schema v5).
+
+### Compatibility
+
+`final_score` remains the 0–2 scenario-count-weighted percentage defined
+above. Runs scored before the enterprise rubric existed compare across
+unchanged; a run with enterprise scenarios still reports the same 0–2
+`final_score` it always would, so historical baselines and the enterprise
+axis never contaminate each other.
+
+---
+
 ## Difficulty Tiers
 
 Each scenario is assigned a **difficulty tier** from 1 to 5:

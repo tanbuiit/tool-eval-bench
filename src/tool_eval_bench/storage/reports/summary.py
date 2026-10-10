@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import mean, stdev
 from typing import Any, Mapping
 
 from tool_eval_bench.domain.models import RunContext
@@ -140,6 +141,9 @@ def write_summary_report(
     num_warnings = [len(s.safety_warnings) for s in summaries]
     md.append("| **Safety Warnings** | " + " | ".join(str(w) for w in num_warnings) + " | — |")
     md.append("")
+
+    # ── Enterprise grading (separate 0–3 scale) ──
+    md.extend(_render_enterprise_grading(summaries))
 
     # ── Reliability metrics ──
     pass_at = agg.get("pass_at_k", 0)
@@ -363,3 +367,61 @@ def _issue_cell(scenario_id: str, summary: str, held_out: set[str]) -> str:
     if scenario_id in held_out:
         return HELD_OUT_CELL
     return _markdown_table_cell(summary)
+
+
+def _render_enterprise_grading(summaries: list[ModelScoreSummary]) -> list[str]:
+    """Render the separate 0–3 enterprise grading section, or its absence.
+
+    The 0–2 ``final_score`` keeps its meaning, so an ungraded run only prints
+    a note instead of a table — the legacy headline numbers stay the only bar.
+    """
+    scores = [s.enterprise_score for s in summaries]
+    if all(score is None for score in scores):
+        return [
+            "## Enterprise Grading",
+            "",
+            "Enterprise scoring: not configured — no scenario in this run carries an "
+            "`enterprise_points` rubric, so only the 0–2 final score applies.",
+            "",
+        ]
+
+    graded = [float(s) for s in scores if s is not None]
+    md = [
+        "## Enterprise Grading (0–3 rubric)",
+        "",
+        "| Metric | "
+        + " | ".join(f"Trial {i + 1}" for i in range(len(summaries)))
+        + " | Mean ± σ |",
+        "|---|" + "".join(":---:|" for _ in range(len(summaries))) + ":---:|",
+    ]
+    cells = ["—" if s is None else f"{s:.0f}" for s in scores]
+    spread = f"{mean(graded):.1f} ± {stdev(graded):.1f}" if len(graded) > 1 else f"{graded[0]:.1f}"
+    md.append("| **Enterprise Score** | " + " | ".join(cells) + f" | **{spread}** |")
+    md.append("")
+
+    # Scenario counts and the per-category breakdown come from the first trial
+    # that graded enterprise scenarios; every trial runs the same selector.
+    source = next(s for s in summaries if s.enterprise_category_scores)
+    n_ent = sum(ecs.scenario_count for ecs in source.enterprise_category_scores)
+    md.append(
+        f"> {n_ent} of {len(source.scenario_results)} scenario(s) carry an `enterprise_points` "
+        "rubric graded 0–3 (0 fail / 1 partial / 2 pass / 3 enterprise-excellent). "
+        "The 0–2 `final_score` above is unchanged — see docs/methodology.md."
+    )
+    md.append("")
+
+    md.extend(
+        [
+            "### Enterprise by Category",
+            "",
+            "| Category | Scenarios | Points | Score |",
+            "|---|---:|---:|---:|",
+        ]
+    )
+    for ecs in source.enterprise_category_scores:
+        md.append(
+            f"| {_markdown_table_cell(ecs.label)} | {ecs.scenario_count} "
+            f"| {ecs.earned}/{ecs.max_points} | {ecs.percent}% |"
+        )
+    md.append("")
+    return md

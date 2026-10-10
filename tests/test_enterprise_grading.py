@@ -14,6 +14,7 @@ import sqlite3
 from pathlib import Path
 
 from tool_eval_bench.domain.scenarios import (
+    CATEGORY_LABELS,
     Category,
     FailureKind,
     ScenarioDefinition,
@@ -30,11 +31,15 @@ from tool_eval_bench.runner.orchestrator import score_results
 from tool_eval_bench.storage.db import _SCHEMA_VERSION, RunRepository
 
 
-def _scenario(scenario_id: str, enterprise_points: int | None = None) -> ScenarioDefinition:
+def _scenario(
+    scenario_id: str,
+    enterprise_points: int | None = None,
+    category: Category = Category.A,
+) -> ScenarioDefinition:
     return ScenarioDefinition(
         id=scenario_id,
         title=scenario_id,
-        category=Category.A,
+        category=category,
         user_message="test",
         description="test",
         handle_tool_call=lambda state, call: {},
@@ -237,3 +242,116 @@ def test_tier_helpers_match_status_points() -> None:
     assert pass_eval("ok").points == 2
     assert partial_eval("ok").points == 1
     assert fail_eval("ok").points == 0
+
+
+# ---------------------------------------------------------------------------
+# (e) per-category enterprise breakdown + payload (B02)
+# ---------------------------------------------------------------------------
+
+
+def test_enterprise_category_breakdown_per_category() -> None:
+    scenarios = [
+        _scenario("TC-E1", enterprise_points=3),
+        _scenario("TC-E2", enterprise_points=3),
+        _scenario("TC-E3", enterprise_points=3, category=Category.B),
+        _scenario("TC-E4", category=Category.C),  # no rubric → category C absent
+    ]
+    results = [
+        _result("TC-E1", ScenarioStatus.PASS, 2),  # tier 3
+        _result("TC-E2", ScenarioStatus.PARTIAL, 1),  # tier 1
+        _result("TC-E3", ScenarioStatus.PASS, 2),  # tier 3
+        _result("TC-E4", ScenarioStatus.PASS, 2),
+    ]
+    summary = score_results(results, scenarios)
+    assert [
+        (ecs.category, ecs.label, ecs.earned, ecs.max_points, ecs.percent, ecs.scenario_count)
+        for ecs in summary.enterprise_category_scores
+    ] == [
+        (Category.A, CATEGORY_LABELS[Category.A], 4, 6, 67, 2),
+        (Category.B, CATEGORY_LABELS[Category.B], 3, 3, 100, 1),
+    ]
+
+
+def test_enterprise_category_breakdown_empty_without_rubric() -> None:
+    scenarios = [_scenario("TC-E1"), _scenario("TC-E2", category=Category.B)]
+    results = [_result("TC-E1", ScenarioStatus.PASS, 2), _result("TC-E2", ScenarioStatus.PASS, 2)]
+    summary = score_results(results, scenarios)
+    assert summary.enterprise_category_scores == []
+
+
+def test_to_dict_includes_enterprise_categories_when_graded() -> None:
+    scenarios = [
+        _scenario("TC-E1", enterprise_points=3),
+        _scenario("TC-E2", enterprise_points=3, category=Category.B),
+    ]
+    results = [
+        _result("TC-E1", ScenarioStatus.PASS, 2),  # tier 3
+        _result("TC-E2", ScenarioStatus.PARTIAL, 1),  # tier 1
+    ]
+    payload = score_results(results, scenarios).to_dict()
+    assert payload["enterprise_categories"] == [
+        {
+            "category": "A",
+            "label": CATEGORY_LABELS[Category.A],
+            "earned": 3,
+            "max": 3,
+            "percent": 100,
+            "scenarios": 1,
+        },
+        {
+            "category": "B",
+            "label": CATEGORY_LABELS[Category.B],
+            "earned": 1,
+            "max": 3,
+            "percent": 33,
+            "scenarios": 1,
+        },
+    ]
+
+
+def test_to_dict_omits_enterprise_payload_without_rubric() -> None:
+    scenarios = [_scenario("TC-E1")]
+    payload = score_results([_result("TC-E1", ScenarioStatus.PASS, 2)], scenarios).to_dict()
+    assert "enterprise_score" not in payload
+    assert "enterprise_categories" not in payload
+
+
+def test_upsert_persists_enterprise_score_column(tmp_path: Path) -> None:
+    db_path = tmp_path / "ent.sqlite"
+    with RunRepository(db_path=str(db_path)) as repo:
+        repo.upsert_scenario_run(
+            {
+                "run_id": "ent-run",
+                "config": {"model": "m"},
+                "scores": {"enterprise_score": 67, "final_score": 80},
+            }
+        )
+        conn = sqlite3.connect(db_path)
+        value = conn.execute(
+            "SELECT enterprise_score FROM scenario_runs WHERE run_id='ent-run'"
+        ).fetchone()[0]
+        conn.close()
+        assert value == 67
+
+
+def test_upsert_without_enterprise_score_stays_null_and_resets(tmp_path: Path) -> None:
+    db_path = tmp_path / "ent-null.sqlite"
+    with RunRepository(db_path=str(db_path)) as repo:
+        run_data = {"run_id": "plain-run", "config": {"model": "m"}, "scores": {}}
+        repo.upsert_scenario_run(run_data)
+        # Re-persisting without the key (e.g. a claimed row) must not leave a
+        # stale value behind.
+        repo.upsert_scenario_run(
+            {
+                "run_id": "plain-run",
+                "config": {"model": "m"},
+                "scores": {"enterprise_score": 90},
+            }
+        )
+        repo.upsert_scenario_run(run_data)
+        conn = sqlite3.connect(db_path)
+        value = conn.execute(
+            "SELECT enterprise_score FROM scenario_runs WHERE run_id='plain-run'"
+        ).fetchone()[0]
+        conn.close()
+        assert value is None

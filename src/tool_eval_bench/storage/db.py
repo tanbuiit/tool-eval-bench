@@ -237,15 +237,20 @@ class RunRepository:
         would otherwise deserialize all of them just to read a score.
         """
         scores, traces = _split_traces(run_data.get("scores", {}))
+        # The dedicated column mirrors the top-level ``enterprise_score`` key of
+        # the scores payload (``None`` = no scenario carried a rubric) so
+        # leaderboard/compare queries need not parse ``scores_json``.
+        enterprise_score = scores.get("enterprise_score")
         with self._conn as conn:
             now = datetime.now(timezone.utc).isoformat()
             conn.execute(
                 """
                 INSERT INTO scenario_runs(
                     run_id, created_at, status, model, config_json,
-                    scores_json, metadata_json, run_type, report_path
+                    scores_json, metadata_json, run_type, report_path,
+                    enterprise_score
                 )
-                VALUES(?,?,?,?,?,?,?,?,?)
+                VALUES(?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(run_id) DO UPDATE SET
                   created_at=excluded.created_at,
                   status=excluded.status,
@@ -254,7 +259,8 @@ class RunRepository:
                   scores_json=excluded.scores_json,
                   metadata_json=excluded.metadata_json,
                   run_type=excluded.run_type,
-                  report_path=excluded.report_path
+                  report_path=excluded.report_path,
+                  enterprise_score=excluded.enterprise_score
                 """,
                 (
                     run_data["run_id"],
@@ -266,6 +272,7 @@ class RunRepository:
                     json.dumps(run_data.get("metadata", {})),
                     run_data.get("run_type", "tool_eval"),
                     run_data.get("report_path"),
+                    enterprise_score,
                 ),
             )
             conn.executemany(

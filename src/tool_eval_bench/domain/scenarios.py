@@ -422,6 +422,24 @@ class CapabilityScore:
 
 
 @dataclass
+class EnterpriseCategoryScore:
+    """Enterprise (0–3) points earned within one category.
+
+    Only categories with at least one graded scenario that opts in via
+    ``ScenarioDefinition.enterprise_points`` appear here.  ``max_points`` is
+    the number of graded enterprise scenarios in the category × 3, mirroring
+    how ``enterprise_score`` divides by N × 3 rather than N × 2.
+    """
+
+    category: Category
+    label: str
+    earned: int
+    max_points: int = 0
+    percent: float = 0.0
+    scenario_count: int = 0
+
+
+@dataclass
 class ScenarioResult:
     """Result of running one scenario for one model."""
 
@@ -581,6 +599,9 @@ class ModelScoreSummary:
     # scenario in the run carries an enterprise rubric.  The 0–2
     # ``final_score`` is computed independently and never changes.
     enterprise_score: float | None = None
+    # Per-category enterprise (0–3) breakdown.  Empty when no scenario in the
+    # run carries an enterprise rubric.
+    enterprise_category_scores: list[EnterpriseCategoryScore] = field(default_factory=list)
     # Scenario IDs dropped from scoring because the endpoint failed them
     # (timeout / connection error / 5xx). See INFRASTRUCTURE_FAILURE_KINDS.
     excluded_scenarios: list[str] = field(default_factory=list)
@@ -642,6 +663,18 @@ class ModelScoreSummary:
             d["weighted_score"] = self.weighted_score
         if self.enterprise_score is not None:
             d["enterprise_score"] = self.enterprise_score
+            if self.enterprise_category_scores:
+                d["enterprise_categories"] = [
+                    {
+                        "category": ecs.category.value,
+                        "label": ecs.label,
+                        "earned": ecs.earned,
+                        "max": ecs.max_points,
+                        "percent": ecs.percent,
+                        "scenarios": ecs.scenario_count,
+                    }
+                    for ecs in self.enterprise_category_scores
+                ]
         if self.excluded_scenarios:
             d["excluded_scenarios"] = self.excluded_scenarios
             d["completion_rate"] = round(self.completion_rate, 1)

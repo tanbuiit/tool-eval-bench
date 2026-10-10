@@ -364,6 +364,10 @@ class ScenarioReportMetadata:
     category: Category
     difficulty: int | None = None
     held_out: bool = False
+    # Optional enterprise rubric (0–3) for display.  ``None`` (the default)
+    # means the scenario has no enterprise rubric and shows no enterprise
+    # value; the 0–2 ``final_score`` is never affected.
+    enterprise_points: int | None = None
 
 
 def scenario_report_metadata(
@@ -380,9 +384,38 @@ def scenario_report_metadata(
             category=scenario.category,
             difficulty=scenario.difficulty,
             held_out=scenario.held_out,
+            enterprise_points=scenario.enterprise_points,
         )
         for scenario in scenarios
     }
+
+
+def enterprise_tier(
+    status: ScenarioStatus,
+    points: int,
+    enterprise_points: int | None,
+) -> int | None:
+    """Map one graded outcome to the 0–3 enterprise tier, or ``None``.
+
+    Display-side counterpart of ``evals.helpers.enterprise_score_earned``:
+    report writers only hold ``ScenarioReportMetadata`` (they must not import
+    evaluators), so the tier rule lives here in the domain layer where both
+    the scorer and the renderers can share it.
+
+    * ``enterprise_points is None`` — no enterprise rubric, excluded (``None``).
+    * FAIL → 0 · PARTIAL → 1 · PASS → 2.
+    * PASS with full marks (2/2) on a rubric that tops out at 3
+      (``enterprise_points >= 3``) → 3, the "enterprise-excellent" tier.
+    """
+    if enterprise_points is None:
+        return None
+    if status is ScenarioStatus.FAIL:
+        return 0
+    if status is ScenarioStatus.PARTIAL:
+        return 1
+    if enterprise_points >= 3 and points == 2:
+        return 3
+    return 2
 
 
 # ---------------------------------------------------------------------------

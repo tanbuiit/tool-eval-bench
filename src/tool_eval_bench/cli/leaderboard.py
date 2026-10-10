@@ -152,6 +152,7 @@ def print_leaderboard(console: Console, limit: int = 50) -> None:
     table.add_column("Model", min_width=20, no_wrap=True)
     table.add_column("Cohort", justify="center", width=32, no_wrap=True)
     table.add_column("Score", justify="center", width=7, style="bold")
+    table.add_column("Ent", justify="center", width=5)
     table.add_column("Rating", justify="center", width=7)
     table.add_column("P/F/C", justify="center", width=14, no_wrap=True)
 
@@ -193,6 +194,14 @@ def print_leaderboard(console: Console, limit: int = 50) -> None:
         score = row["final_score"]
         score_str = f"[{_score_color(score)}]{score}[/]"
 
+        # Enterprise (0–3 rubric) — a separate axis, never the final score.
+        ent = row.get("enterprise_score")
+        if ent is None:
+            ent_str = "[dim]—[/]"
+        else:
+            ent_color = "bold green" if ent >= 90 else ("green" if ent >= 75 else "yellow")
+            ent_str = f"[{ent_color}]{ent:.0f}[/]"
+
         # Rating stars
         rating_str = _rating_short(row["rating"])
 
@@ -227,6 +236,7 @@ def print_leaderboard(console: Console, limit: int = 50) -> None:
             f"[bold]{escape(model_name)}[/]",
             cohort_str,
             score_str,
+            ent_str,
             rating_str,
             pf_str,
             *cat_cells,
@@ -259,6 +269,7 @@ def print_leaderboard(console: Console, limit: int = 50) -> None:
             + "  [dim]P/F/C = ✅pass / ⚠️partial / ❌fail / completed scenarios   │   "
             + "Cohort = comparable benchmark conditions   │   "
             + "Scores: [bold green]90+[/] [green]75+[/] [yellow]60+[/] [red]40+[/] [bold red]<40[/]   │   "
+            + "Ent = separate 0–3 enterprise rubric (— = not graded)   │   "
             + "★★★ⓢ = safety-capped[/]"
             + partial_note
             + (
@@ -325,6 +336,8 @@ def export_runs(
             }
             if row.get("token_efficiency") is not None:
                 entry["token_efficiency"] = row["token_efficiency"]
+            if row.get("enterprise_score") is not None:
+                entry["enterprise_score"] = row["enterprise_score"]
             if row.get("deployability") is not None:
                 entry["deployability"] = row["deployability"]
             if row.get("median_turn_ms") is not None:
@@ -358,6 +371,7 @@ def export_runs(
             "run_id",
             "date",
             "final_score",
+            "enterprise_score",
             "rating",
             "total_points",
             "max_points",
@@ -393,6 +407,11 @@ def export_runs(
                 "run_id": row["run_id"],
                 "date": row["date"],
                 "final_score": row["final_score"],
+                "enterprise_score": (
+                    f"{row['enterprise_score']:.0f}"
+                    if row.get("enterprise_score") is not None
+                    else ""
+                ),
                 "rating": row["rating"],
                 "total_points": row["total_points"],
                 "max_points": row["max_points"],

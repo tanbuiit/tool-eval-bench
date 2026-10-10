@@ -18,6 +18,7 @@ from tool_eval_bench.domain.scenarios import (
     ModelScoreSummary,
     ScenarioReportMetadata,
     ScenarioStatus,
+    enterprise_tier,
 )
 from tool_eval_bench.storage.reports._common import (
     _HELD_OUT_LABEL,
@@ -300,10 +301,23 @@ def write_scenario_report(
             )
 
     md.extend(["", "## Scenario Results", ""])
-    md.append("| ID | Title | Diff | Status | Points | Failure | Summary |")
-    md.append("|---|---|:---:|---:|---:|---|---|")
+    # The separate 0–3 enterprise column renders only when at least one
+    # scenario in the run carries an ``enterprise_points`` rubric; the 0–2
+    # points column is unchanged and keeps its meaning.
+    graded_enterprise = any(
+        (metadata := scenario_metadata.get(r.scenario_id)) is not None
+        and metadata.enterprise_points is not None
+        for r in summary.scenario_results
+    )
+    if graded_enterprise:
+        md.append("| ID | Title | Diff | Status | Points | Ent | Failure | Summary |")
+        md.append("|---|---|:---:|---:|---:|---:|---|---|")
+    else:
+        md.append("| ID | Title | Diff | Status | Points | Failure | Summary |")
+        md.append("|---|---|:---:|---:|---:|---|---|")
 
     _diff_labels = {1: "★", 2: "★★", 3: "★★★", 4: "★★★★", 5: "★★★★★"}
+    excluded_ids = set(summary.excluded_scenarios)
 
     for r in summary.scenario_results:
         emoji = status_emoji.get(r.status, "?")
@@ -318,11 +332,23 @@ def write_scenario_report(
             title = metadata.title if metadata else r.scenario_id
             note = f" ({r.note})" if r.note else ""
             detail = f"{r.summary}{note}"
-        md.append(
+        row = (
             f"| {_markdown_table_cell(r.scenario_id)} | {_markdown_table_cell(title)} | {diff_str} | "
-            f"{emoji} {_markdown_table_cell(r.status.value)} | {r.points}/2 | "
-            f"{_markdown_table_cell(failure)} | {_markdown_table_cell(detail)} |"
+            f"{emoji} {_markdown_table_cell(r.status.value)} | {r.points}/2 |"
         )
+        if graded_enterprise:
+            # Infrastructure-excluded scenarios leave the enterprise
+            # denominator too, so they show an en dash rather than tier 0.
+            ent = (
+                "—"
+                if r.scenario_id in excluded_ids
+                or not metadata
+                or metadata.enterprise_points is None
+                else str(enterprise_tier(r.status, r.points, metadata.enterprise_points))
+            )
+            row += f" {_markdown_table_cell(ent)} |"
+        row += f" {_markdown_table_cell(failure)} | {_markdown_table_cell(detail)} |"
+        md.append(row)
 
     if held_out:
         md.extend(_render_held_out_note(sorted(held_out), scenario_packs))

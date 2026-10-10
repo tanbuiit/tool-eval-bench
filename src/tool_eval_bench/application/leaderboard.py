@@ -192,6 +192,9 @@ def extract_leaderboard_rows(
                 "run_id": best.get("run_id", "?"),
                 "date": best.get("created_at", "?")[:19],
                 "final_score": scores.get("final_score", 0),
+                # Separate 0–3 enterprise aggregate; ``None`` = the run graded
+                # no scenario that carries an ``enterprise_points`` rubric.
+                "enterprise_score": scores.get("enterprise_score"),
                 "rating": scores.get("rating", "?"),
                 "total_points": scores.get("total_points", 0),
                 "max_points": scores.get("max_points", 0),

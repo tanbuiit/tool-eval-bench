@@ -24,6 +24,7 @@ from tool_eval_bench.domain.scenarios import (
     ScenarioStatus,
     ToolCallRecord,
     ToolResultRecord,
+    enterprise_tier,
 )
 from tool_eval_bench.domain.tools import BENCHMARK_REFERENCE_DATE
 
@@ -1007,27 +1008,17 @@ def enterprise_score_earned(
             ``ScenarioStatus``, or its string value ("pass"/"partial"/"fail").
     """
     enterprise_points = getattr(scenario, "enterprise_points", None)
-    if enterprise_points is None:
-        return None
     if isinstance(outcome, ScenarioResult):
         status = outcome.status
-        full_marks = outcome.points == 2
+        points = outcome.points
     else:
         # A bare status carries no points evidence, so it can never prove the
         # "enterprise-excellent" tier — a plain PASS earns tier 2.
         status = (
             outcome if isinstance(outcome, ScenarioStatus) else ScenarioStatus(str(outcome).lower())
         )
-        full_marks = False
-    if status is ScenarioStatus.FAIL:
-        return 0
-    if status is ScenarioStatus.PARTIAL:
-        return 1
-    # PASS: 2 points; 3 when the scenario carries a top enterprise tier and
-    # the run was a clean full-marks pass.
-    if enterprise_points >= 3 and full_marks:
-        return 3
-    return 2
+        points = 1  # a sub-full-marks placeholder: PASS can never reach tier 3
+    return enterprise_tier(status, points, enterprise_points)
 
 
 # ---------------------------------------------------------------------------

@@ -142,6 +142,7 @@ def print_history(console: Console) -> None:
     table.add_column("Run ID", min_width=30, no_wrap=True)
     table.add_column("Model", min_width=20)
     table.add_column("Score", justify="right", width=8)
+    table.add_column("Ent", justify="right", width=5)
     table.add_column("Rating", min_width=16)
     table.add_column("Context", min_width=25, no_wrap=True)
     table.add_column("Date", width=20)
@@ -149,6 +150,9 @@ def print_history(console: Console) -> None:
     for run in runs:
         scores = run.get("scores") or {}
         score = scores.get("final_score", "?")
+        # Separate 0–3 enterprise aggregate (— = no scenario carried a rubric).
+        ent = scores.get("enterprise_score")
+        ent_str = f"{ent:.0f}" if ent is not None else "—"
         rating = escape(str(scores.get("rating", "")))
         if run.get("status") != RUN_STATUS_COMPLETED:
             # Interrupted and still-running rows have no final score; surface the
@@ -165,6 +169,7 @@ def print_history(console: Console) -> None:
             f"[dim]{escape(str(run['run_id']))}[/]",
             escape(str(run.get("model", "?"))),
             f"[bold]{escape(str(score))}[/]",
+            f"[dim]{ent_str}[/]",
             rating,
             f"[dim]{context}[/]" if context else "[dim]—[/]",
             f"[dim]{escape(created)}[/]",
@@ -490,6 +495,8 @@ def compare_runs(console: Console, run_id_a: str, run_id_b: str) -> None:
 
     score_a = run_a.get("scores", {}).get("final_score", "?")
     score_b = run_b.get("scores", {}).get("final_score", "?")
+    ent_a = run_a.get("scores", {}).get("enterprise_score")
+    ent_b = run_b.get("scores", {}).get("enterprise_score")
 
     summary = (
         f"  [green]↑ {improved} improved[/]  "
@@ -497,6 +504,15 @@ def compare_runs(console: Console, run_id_a: str, run_id_b: str) -> None:
         f"[dim]= {unchanged} unchanged[/]\n"
         f"  [bold]Points: {total_a} → {total_b} ([{delta_color}]{delta_sign}{total_delta}[/])[/]\n"
         f"  [bold]Score:  {score_a} → {score_b}[/]"
+    )
+    if ent_a is not None or ent_b is not None:
+        ent_a_str = f"{ent_a:.0f}" if ent_a is not None else "—"
+        ent_b_str = f"{ent_b:.0f}" if ent_b is not None else "—"
+        summary += f"\n  [bold]Enterprise (0–3 rubric):  {ent_a_str} → {ent_b_str}[/]"
+    summary += (
+        "\n  [dim]Enterprise is a separate 0–3 axis; the 0–2 final score is unchanged.[/]"
+        if (ent_a is not None or ent_b is not None)
+        else ""
     )
 
     console.print(Panel(summary, border_style="bright_cyan", padding=(0, 2)))

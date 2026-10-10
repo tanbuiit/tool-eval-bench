@@ -32,6 +32,7 @@ from tool_eval_bench.domain.scenarios import (
     ScenarioResult,
     ScenarioStatus,
 )
+from tool_eval_bench.evals.helpers import enterprise_score_earned
 from tool_eval_bench.evals.scenarios import (
     ALL_DISPLAY_DETAILS,
     ALL_SCENARIOS_WITH_HARDMODE,
@@ -336,11 +337,18 @@ class BenchmarkDisplay:
             latency_parts.append(f"t{result.turn_count}")
         latency_str = f"  [dim]{' '.join(latency_parts)}[/]" if latency_parts else ""
 
-        # Base line: dot  ID  title  status  points  time  latency
+        # Base line: dot  ID  title  status  points  ent  time  latency
+        ent_str = ""
+        if scenario.enterprise_points is not None:
+            # Separate 0–3 enterprise tier (— when the scenario left the
+            # enterprise denominator via an infrastructure failure).
+            ent = "–" if infrastructure else enterprise_score_earned(scenario, result)
+            ent_str = f"  [bold cyan]{ent}[/]/3" if isinstance(ent, int) else "  [dim cyan]–[/]/3"
         line = (
             f"  [{cat_color}]●[/] {scenario.id}  {scenario.title:<30s}"
             f"  [{status_color}]{label}[/]"
             f"  [bold]{points}[/]/2"
+            f"{ent_str}"
             f"  [dim]{dur:>5s}[/]"
             f"{latency_str}"
         )

@@ -17,6 +17,7 @@ from tool_eval_bench.domain.scenarios import (
     ModelScoreSummary,
     ScenarioReportMetadata,
     ScenarioStatus,
+    enterprise_tier,
 )
 from tool_eval_bench.storage.reports._common import (
     HELD_OUT_CELL,
@@ -187,12 +188,28 @@ def write_summary_report(
     scenario_ids = [r.scenario_id for r in summaries[0].scenario_results]
     per_scenario = agg.get("per_scenario", {})
 
+    # The separate 0–3 enterprise rubric renders as per-trial columns only
+    # when at least one scenario in the run carries ``enterprise_points``.
+    scenario_metadata = scenario_metadata or {}
+    graded_enterprise = any(
+        (metadata := scenario_metadata.get(sid)) is not None
+        and metadata.enterprise_points is not None
+        for sid in scenario_ids
+    )
+    ent_headers = [f"Ent T{i + 1}" for i in range(n)] if graded_enterprise else []
+
     md.extend(
         [
             "## Per-Scenario Results",
             "",
-            "| Scenario | " + " | ".join(f"T{i + 1}" for i in range(n)) + " | Pass@k | Pass^k |",
-            "|---|" + "".join(":---:|" for _ in range(n)) + ":---:|:---:|",
+            "| Scenario | "
+            + " | ".join(f"T{i + 1}" for i in range(n))
+            + (" | " + " | ".join(ent_headers) if ent_headers else "")
+            + " | Pass@k | Pass^k |",
+            "|---|"
+            + "".join(":---:|" for _ in range(n))
+            + ("".join(":---:|" for _ in range(n)) if ent_headers else "")
+            + ":---:|:---:|",
         ]
     )
 
@@ -203,6 +220,7 @@ def write_summary_report(
     for sid in scenario_ids:
         row_cells = []
         statuses = []
+        ent_cells = []
         for s in summaries:
             r = next((r for r in s.scenario_results if r.scenario_id == sid), None)
             if r:
@@ -211,6 +229,15 @@ def write_summary_report(
                 statuses.append(r.status)
             else:
                 row_cells.append("—")
+            if graded_enterprise:
+                metadata = scenario_metadata.get(sid)
+                excluded = sid in set(s.excluded_scenarios)
+                if r is None or excluded or metadata is None or metadata.enterprise_points is None:
+                    ent_cells.append("—")
+                else:
+                    ent_cells.append(
+                        str(enterprise_tier(r.status, r.points, metadata.enterprise_points))
+                    )
 
         stats = per_scenario.get(sid, {})
         pass_k = "✓" if stats.get("pass_at_k") else "✗"
@@ -219,6 +246,7 @@ def write_summary_report(
         md.append(
             f"| {_markdown_table_cell(sid)} | "
             + " | ".join(row_cells)
+            + (" | " + " | ".join(ent_cells) if ent_cells else "")
             + f" | {pass_k} | {pass_hat_k} |"
         )
 

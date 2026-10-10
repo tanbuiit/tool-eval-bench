@@ -38,6 +38,10 @@ def parse_md(fp: str) -> dict:
     d["date_short"] = d["date"][:10] if d["date"] else ""
     d["tool_eval_version"] = _r(r"\*\*tool-eval-bench\*\*:\s*`(.+?)`", txt)
     d["final_score"] = int(_r(r"\*\*Final Score\*\*:\s*\*\*(\d+)\*\*", txt) or 0)
+    # Separate 0–3 enterprise aggregate (only when the run graded scenarios
+    # that carry an ``enterprise_points`` rubric).
+    ent_score = _r(r"\*\*Enterprise Score\*\*:\s*\*\*(\d+)\*\*", txt)
+    d["enterprise_score"] = int(ent_score) if ent_score else None
     pts = re.search(r"\*\*Total Points\*\*:\s*(\d+)\s*/\s*(\d+)", txt)
     d["total_points_earned"] = int(pts.group(1)) if pts else 0
     d["total_points_max"] = int(pts.group(2)) if pts else 0
@@ -59,6 +63,7 @@ def parse_md(fp: str) -> dict:
     d["categories"] = _parse_cats(txt)
     d["scenarios"] = _parse_scenarios(txt)
     d["difficulties"] = _parse_diffs(txt)
+    d["enterprise_categories"] = _parse_enterprise_cats(txt)
 
     # Back-fill tier order from whichever summary has more data
     all_tiers = ["Trivial", "Easy", "Moderate", "Hard", "Very Hard"]
@@ -112,7 +117,18 @@ def _parse_scenarios(txt):
     block = re.search(r"## Scenario Results\n\n(.+?)(?=\n## |\Z)", txt, re.S)
     if not block:
         return rows
-    for line in block.group(1).split("\n"):
+    lines = block.group(1).split("\n")
+    header: dict[str, int] = {}
+    for line in lines:
+        if not line.strip().startswith("|"):
+            continue
+        cols = [c.strip() for c in line.split("|")]
+        if cols and cols[1] == "ID":
+            # Column names are stable; map them once so an extra Enterprise
+            # column can never shift the points/summary indices.
+            header = {name: idx for idx, name in enumerate(cols) if name}
+            break
+    for line in lines:
         if not line.strip().startswith("|"):
             continue
         cols = [c.strip() for c in line.split("|")]
@@ -127,7 +143,15 @@ def _parse_scenarios(txt):
             status = "partial"
         else:
             status = "fail"
-        pm = re.search(r"(\d+)/(\d+)", cols[5] if len(cols) > 5 else "")
+        points_idx = header.get("Points", 5)
+        ent_idx = header.get("Ent")
+        summary_idx = header.get("Summary", len(cols) - 2)
+        pm = re.search(r"(\d+)/(\d+)", cols[points_idx] if len(cols) > points_idx else "")
+        ent = None
+        if ent_idx is not None and len(cols) > ent_idx:
+            ent_raw = cols[ent_idx]
+            if ent_raw.isdigit():
+                ent = int(ent_raw)
         rows.append(
             {
                 "id": cols[1],
@@ -136,9 +160,41 @@ def _parse_scenarios(txt):
                 "status": status,
                 "points_earned": int(pm.group(1)) if pm else 0,
                 "points_max": int(pm.group(2)) if pm else 0,
-                # Summary is the last cell; newer reports insert a Failure
-                # column before it.
-                "summary": html.unescape(cols[-2]) if len(cols) > 6 else "",
+                "enterprise_earned": ent,
+                "enterprise_max": 3 if ent is not None else None,
+                # Summary is the last named cell; newer reports insert a
+                # Failure column before it.
+                "summary": html.unescape(cols[summary_idx]) if len(cols) > summary_idx else "",
+            }
+        )
+    return rows
+
+
+def _parse_enterprise_cats(txt):
+    """Parse the optional ``Enterprise by Category`` table (0–3 rubric).
+
+    Returns a list of rows when the run graded enterprise scenarios, and an
+    empty list otherwise — the writer only emits the section when at least
+    one scenario carries ``enterprise_points``.
+    """
+    rows: list[dict[str, Any]] = []
+    block = re.search(r"## Enterprise by Category \(0–3 rubric\)\n\n(.+?)(?=\n## |\Z)", txt, re.S)
+    if not block:
+        return rows
+    for line in block.group(1).strip().split("\n"):
+        if not line.strip().startswith("|"):
+            continue
+        cols = [c.strip() for c in line.split("|")]
+        if len(cols) < 5 or not cols[1] or cols[1].startswith("-") or cols[1] == "Category":
+            continue
+        pm = re.search(r"(\d+)/(\d+)", cols[3] if len(cols) > 3 else "")
+        rows.append(
+            {
+                "name": cols[1],
+                "scenarios": int(cols[2]) if cols[2].isdigit() else 0,
+                "earned": int(pm.group(1)) if pm else 0,
+                "max": int(pm.group(2)) if pm else 0,
+                "percent": float(cols[4].rstrip("%")),
             }
         )
     return rows
@@ -444,6 +500,19 @@ def generate_html(da: dict, db: dict, out: str) -> None:
             </tr>''')
 
     km("Final Score", str(w["final_score"]), str(r["final_score"]), f"+{sd}", wx="text-lg")
+    # Separate 0–3 enterprise aggregate — rendered when either run graded
+    # enterprise scenarios; the final score above is unchanged.
+    w_ent = w.get("enterprise_score")
+    r_ent = r.get("enterprise_score")
+    if w_ent is not None or r_ent is not None:
+        w_ent_str = f"{w_ent} / 100" if w_ent is not None else "—"
+        r_ent_str = f"{r_ent} / 100" if r_ent is not None else "—"
+        if w_ent is not None and r_ent is not None:
+            ent_dv = f"+{int(w_ent - r_ent)}"
+            ent_dc = "diff-positive" if w_ent >= r_ent else "diff-negative"
+        else:
+            ent_dv, ent_dc = "—", "text-slate-500"
+        km("Enterprise Score (0–3 rubric)", w_ent_str, r_ent_str, ent_dv, ent_dc)
     km("Total Points", w["total_points_str"], r["total_points_str"], f"+{pd_}")
     kms = sign(dd)
     kmc = "diff-positive" if dd >= 0 else "diff-negative"
@@ -526,6 +595,61 @@ def generate_html(da: dict, db: dict, out: str) -> None:
     lines.append("        </table>")
     lines.append("      </div>")
     lines.append("    </div>")
+
+    # ─── ENTERPRISE BY CATEGORY (separate 0–3 rubric) ───
+    w_ent_cats = w.get("enterprise_categories") or []
+    r_ent_cats = r.get("enterprise_categories") or []
+    if w_ent_cats or r_ent_cats:
+        r_ent_by_name = {c["name"]: c for c in r_ent_cats}
+        ent_names = [c["name"] for c in w_ent_cats]
+        ent_names += [c["name"] for c in r_ent_cats if c["name"] not in ent_names]
+        lines.append('    <div class="mb-8">')
+        lines.append(
+            '      <div class="section-header font-semibold mb-3 px-1 flex items-center gap-x-2 text-slate-800">'
+        )
+        lines.append('        <i class="fa-solid fa-building-shield text-slate-600"></i>')
+        lines.append("        <span>Enterprise by Category (0–3 rubric)</span>")
+        lines.append("      </div>")
+        lines.append('      <div class="light-card rounded-3xl overflow-hidden">')
+        lines.append('        <table class="w-full text-sm comparison-table">')
+        lines.append("          <thead>")
+        lines.append(f"""            <tr class="bg-slate-200 border-b-2 border-slate-400">
+              <th class="text-left py-3 px-6">Category</th>
+              <th class="px-3 py-3 text-center" style="width:13rem">{wl}</th>
+              <th class="px-3 py-3 text-center" style="width:13rem">{rl}</th>
+            </tr>""")
+        lines.append("          </thead>")
+        lines.append('          <tbody class="divide-y divide-slate-200 text-[13.5px]">')
+        for name in ent_names:
+            wc = next((c for c in w_ent_cats if c["name"] == name), None)
+            rc = r_ent_by_name.get(name)
+            w_cell = (
+                f'{int(wc["percent"])}% <span class="text-slate-500">({wc["earned"]}/{wc["max"]})</span>'
+                if wc
+                else "—"
+            )
+            r_cell = (
+                f'{int(rc["percent"])}% <span class="text-slate-500">({rc["earned"]}/{rc["max"]})</span>'
+                if rc
+                else "—"
+            )
+            lines.append(
+                f'            <tr class="border-t">\n'
+                f'              <td class="py-2.5 px-6 font-medium">{esc(name)}</td>\n'
+                f'              <td class="text-center">{esc(w_cell)}</td>\n'
+                f'              <td class="text-center">{esc(r_cell)}</td>\n'
+                f"            </tr>"
+            )
+        lines.append("          </tbody>")
+        lines.append("        </table>")
+        lines.append("      </div>")
+        lines.append('      <div class="mt-2 text-xs text-slate-500 px-1">')
+        lines.append(
+            "        Separate 0–3 rubric: 0 fail / 1 partial / 2 pass / 3 enterprise-excellent. "
+            "The 0–2 final score above is unchanged."
+        )
+        lines.append("      </div>")
+        lines.append("    </div>")
 
     # ─── DIFFICULTY + RELIABILITY GRID ───
     lines.append('    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">')

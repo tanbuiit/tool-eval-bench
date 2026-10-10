@@ -54,6 +54,13 @@ def parse_summary(fp: str) -> dict:
     d["mean_points"] = float(pm.group(1)) if pm else 0.0
     d["std_points"] = float(pm.group(2)) if pm else 0.0
 
+    # Separate 0–3 enterprise aggregate (only when the run graded scenarios
+    # that carry an ``enterprise_points`` rubric).  The spread cell is
+    # ``**81.0 ± 0.0**`` for several graded trials and ``**80.0**`` for one.
+    em = re.search(r"\*\*Enterprise Score\*\*.*?\|\s*\*\*([\d.]+)(?:\s*±\s*([\d.]+))?\*\*", txt)
+    d["enterprise_mean"] = float(em.group(1)) if em else None
+    d["enterprise_std"] = float(em.group(2)) if em and em.group(2) else None
+
     # Rating — the Rating row is a pipe-delimited table line; take the last (summary) column
     rating_m = re.search(r"^\|\s*\*\*Rating\*\*\s*\|(.+)", txt, re.M)
     if rating_m:
@@ -80,6 +87,9 @@ def parse_summary(fp: str) -> dict:
     # Category variance
     d["categories"] = _parse_cat_var(txt)
 
+    # Enterprise by category (separate 0–3 rubric)
+    d["enterprise_categories"] = _parse_enterprise_cats(txt)
+
     # Per-scenario results
     d["scenarios"] = _parse_summary_scenarios(txt)
 
@@ -103,6 +113,35 @@ def parse_summary(fp: str) -> dict:
     d["median_turn"] = _r(r"^\|\s*(?:\*\*)?Median Turn(?:\*\*)?\s*\|\s*([\d.]+)s", txt, fl=re.M)
 
     return d
+
+
+def _parse_enterprise_cats(txt):
+    """Parse the optional ``### Enterprise by Category`` table (0–3 rubric).
+
+    The writer only emits the section when at least one scenario in the run
+    carries ``enterprise_points``; absent sections return an empty list.
+    """
+    rows: list[dict[str, Any]] = []
+    block = re.search(r"### Enterprise by Category\n\n(.+?)(?=\n## |\Z)", txt, re.S)
+    if not block:
+        return rows
+    for line in block.group(1).strip().split("\n"):
+        if not line.strip().startswith("|"):
+            continue
+        cols = [c.strip() for c in line.split("|")]
+        if len(cols) < 5 or not cols[1] or cols[1].startswith("-") or cols[1] == "Category":
+            continue
+        pm = re.search(r"(\d+)/(\d+)", cols[3] if len(cols) > 3 else "")
+        rows.append(
+            {
+                "name": cols[1],
+                "scenarios": int(cols[2]) if cols[2].isdigit() else 0,
+                "earned": int(pm.group(1)) if pm else 0,
+                "max": int(pm.group(2)) if pm else 0,
+                "percent": float(cols[4].rstrip("%")),
+            }
+        )
+    return rows
 
 
 def _parse_cat_var(txt):
@@ -572,6 +611,19 @@ def generate_html(da: dict, db: dict, out: str) -> None:
         "diff-positive" if w["std_score"] <= r["std_score"] else "diff-negative",
     )
     km("Mean Points", f"{w['mean_points']:.1f}", f"{r['mean_points']:.1f}", f"+{diff_pts:.1f}")
+    # Separate 0–3 enterprise aggregate — rendered when either run graded
+    # enterprise scenarios; the mean final score above is unchanged.
+    w_ent = w.get("enterprise_mean")
+    r_ent = r.get("enterprise_mean")
+    if w_ent is not None or r_ent is not None:
+        w_ent_str = f"{w_ent:.0f} / 100" if w_ent is not None else "—"
+        r_ent_str = f"{r_ent:.0f} / 100" if r_ent is not None else "—"
+        if w_ent is not None and r_ent is not None:
+            ent_dv = f"+{int(round(w_ent - r_ent))}"
+            ent_dc = "diff-positive" if w_ent >= r_ent else "diff-negative"
+        else:
+            ent_dv, ent_dc = "—", "text-slate-500"
+        km("Enterprise Score (0–3 rubric)", w_ent_str, r_ent_str, ent_dv, ent_dc)
     deploy_sign = sign(dd)
     deploy_cls = "diff-positive" if dd >= 0 else "diff-negative"
     km(
@@ -750,6 +802,61 @@ def generate_html(da: dict, db: dict, out: str) -> None:
     lines.append("        </table>")
     lines.append("      </div>")
     lines.append("    </div>")
+
+    # ─── ENTERPRISE BY CATEGORY (separate 0–3 rubric) ───
+    w_ent_cats = w.get("enterprise_categories") or []
+    r_ent_cats = r.get("enterprise_categories") or []
+    if w_ent_cats or r_ent_cats:
+        r_ent_by_name = {c["name"]: c for c in r_ent_cats}
+        ent_names = [c["name"] for c in w_ent_cats]
+        ent_names += [c["name"] for c in r_ent_cats if c["name"] not in ent_names]
+        lines.append('    <div class="mb-8">')
+        lines.append(
+            '      <div class="section-header font-semibold mb-3 px-1 flex items-center gap-x-2 text-slate-800">'
+        )
+        lines.append('        <i class="fa-solid fa-building-shield text-slate-600"></i>')
+        lines.append("        <span>Enterprise by Category (0–3 rubric)</span>")
+        lines.append("      </div>")
+        lines.append('      <div class="light-card rounded-3xl overflow-hidden">')
+        lines.append('        <table class="w-full text-sm comparison-table">')
+        lines.append("          <thead>")
+        lines.append(f"""            <tr class="bg-slate-200 border-b-2 border-slate-400">
+              <th class="text-left py-3 px-6">Category</th>
+              <th class="px-3 py-3 text-center" style="width:13rem">{wl}</th>
+              <th class="px-3 py-3 text-center" style="width:13rem">{rl}</th>
+            </tr>""")
+        lines.append("          </thead>")
+        lines.append('          <tbody class="divide-y divide-slate-200 text-[13.5px]">')
+        for name in ent_names:
+            wc = next((c for c in w_ent_cats if c["name"] == name), None)
+            rc = r_ent_by_name.get(name)
+            w_cell = (
+                f'{int(wc["percent"])}% <span class="text-slate-500">({wc["earned"]}/{wc["max"]})</span>'
+                if wc
+                else "—"
+            )
+            r_cell = (
+                f'{int(rc["percent"])}% <span class="text-slate-500">({rc["earned"]}/{rc["max"]})</span>'
+                if rc
+                else "—"
+            )
+            lines.append(
+                f'            <tr class="border-t">\n'
+                f'              <td class="py-2.5 px-6 font-medium">{esc(name)}</td>\n'
+                f'              <td class="text-center">{esc(w_cell)}</td>\n'
+                f'              <td class="text-center">{esc(r_cell)}</td>\n'
+                f"            </tr>"
+            )
+        lines.append("          </tbody>")
+        lines.append("        </table>")
+        lines.append("      </div>")
+        lines.append('      <div class="mt-2 text-xs text-slate-500 px-1">')
+        lines.append(
+            "        Separate 0–3 rubric: 0 fail / 1 partial / 2 pass / 3 enterprise-excellent. "
+            "The 0–2 final score above is unchanged."
+        )
+        lines.append("      </div>")
+        lines.append("    </div>")
 
     # ─── NEVER PASSES / FLAKY / PARTIALS ───
     lines.append('    <div class="mb-8">')

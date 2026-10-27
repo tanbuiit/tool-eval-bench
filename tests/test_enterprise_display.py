@@ -27,8 +27,10 @@ from rich.console import Console
 
 from tool_eval_bench.cli.display import BenchmarkDisplay
 from tool_eval_bench.cli.history import compare_runs, print_history
+from tool_eval_bench.application.leaderboard import (
+    extract_leaderboard_rows as _extract_leaderboard_rows,
+)
 from tool_eval_bench.cli.leaderboard import (
-    _extract_leaderboard_rows,
     export_runs,
     print_leaderboard,
 )
